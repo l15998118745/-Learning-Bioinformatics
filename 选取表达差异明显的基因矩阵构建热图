@@ -1,0 +1,87 @@
+
+自己写的代码有点乱，而且之后调用麻烦
+#“环境初始化”的标准动作，目的是为了确保你的代码在一个干净、一致的环境中运行。
+rm(list=ls())
+options(stringsAsFactors = F)
+
+
+library(GEOquery)
+gse = getGEO("GSE17215", destdir = ".", getGPL = F)
+dat = exprs(gse[[1]])
+head(dat)
+dat=log2(dat)
+dat[1:4,1:4]
+
+#d_h <-function(dat,group_list){
+  cg=names(tail(sort(apply(dat,1,sd)),1000))
+  library(pheatmap)
+  pheatmap(dat[cg,],show_colnames=F,show_rownames=F)
+  n=t(scale(t(dat[cg,])))
+  n[n>2]=2
+  n[n<-2]=-2
+  n[1:4,1:4]
+  pheatmap(n,show_colnames=F,show_rownames=F)
+  
+  group_list = c(rep("paclitaxel", 3), rep("salinomycin", 3))
+  
+  ac=data.frame(g=group_list)
+  row.names(ac)=colnames(n)
+  pheatmap(n,show_colnames=F,show_rownames=F,annotation = ac)
+  
+#}
+  group_list=group_list[-3]
+  dat=dat[,-3]
+  ac=data.frame(g=group_list)
+  cg=names(tail(sort(apply(dat,1,sd)),1000))
+  n=t(scale(t(dat[cg,])))
+  row.names(ac)=colnames(n)
+  pheatmap(n,show_colnames=F,show_rownames=F,annotation = ac)
+
+AI使用封装函数优化后：
+library(pheatmap)
+library(GEOquery)
+
+# 定义封装函数
+plot_bio_heatmap <- function(dat, group_list, top_n = 1000) {
+  # 1. 筛选高变基因 (基于标准差 sd)
+  cg = names(tail(sort(apply(dat, 1, sd)), top_n))
+  plot_dat = dat[cg, ]
+  
+  # 2. 数据标准化 (Scale) 与 极值截断
+  n = t(scale(t(plot_dat)))
+  n[n > 2] = 2
+  n[n < -2] = -2
+  
+  # 3. 准备分组注释信息
+  ac = data.frame(group = group_list)
+  row.names(ac) = colnames(n)
+  
+  # 4. 绘图
+  pheatmap(n,
+           show_colnames = FALSE,
+           show_rownames = FALSE,
+           annotation_col = ac,
+           main = paste("Top", top_n, "Variable Genes Heatmap"))
+}
+
+# --- 实际运行示例 ---
+
+# 数据准备
+gse = getGEO("GSE17215", destdir = ".", getGPL = F)
+dat = exprs(gse[[1]])
+dat = log2(dat + 1) # 加1防止log2(0)报错
+
+# 初始分组信息
+group_list = c(rep("paclitaxel", 3), rep("salinomycin", 3))
+
+# 场景 1: 绘制全样本热图
+plot_bio_heatmap(dat, group_list)
+
+# 场景 2: 按照你的需求，删除第三列后重新绘图
+# 只需要在这里处理一次数据，然后再次调用函数即可
+dat_sub <- dat[, -3]
+group_sub <- group_list[-3]
+
+plot_bio_heatmap(dat_sub, group_sub)
+
+
